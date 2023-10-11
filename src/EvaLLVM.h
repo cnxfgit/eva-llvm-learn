@@ -16,6 +16,7 @@ public:
     EvaLLVM()
     {
         moduleInit();
+        setupExternFunctions();
     }
 
     void exec(const std::string &program)
@@ -29,7 +30,6 @@ public:
     ~EvaLLVM() = default;
 
 private:
-
     llvm::Function *fn;
 
     std::unique_ptr<llvm::LLVMContext> ctx;
@@ -41,16 +41,24 @@ private:
     void compile()
     {
         fn = createFunction("main", llvm::FunctionType::get(builder->getInt32Ty(), false));
-        auto result = gen();
-
-        auto i32Result = builder->CreateIntCast(result, builder->getInt32Ty(), true);
-
-        builder->CreateRet(i32Result);
+        gen();
+        builder->CreateRet(builder->getInt32(0));
     }
 
     llvm::Value *gen()
     {
-        return builder->getInt32(42);
+        auto str = builder->CreateGlobalStringPtr("hello\n");
+        auto printfFn = module->getFunction("printf");
+
+        std::vector<llvm::Value*> args{str};
+        return builder->CreateCall(printfFn, args);
+    }
+
+    void setupExternFunctions()
+    {
+        auto bytePtrTy = builder->getInt8Ty()->getPointerTo();
+        module->getOrInsertFunction("printf",
+                                    llvm::FunctionType::get(builder->getInt32Ty(), bytePtrTy, true));
     }
 
     llvm::Function *createFunction(const std::string &fnName, llvm::FunctionType *fnType)
@@ -82,7 +90,8 @@ private:
         builder->SetInsertPoint(entry);
     }
 
-    llvm::BasicBlock* createBB(std::string name, llvm::Function * fn = nullptr){
+    llvm::BasicBlock *createBB(std::string name, llvm::Function *fn = nullptr)
+    {
         return llvm::BasicBlock::Create(*ctx, name, fn);
     }
 

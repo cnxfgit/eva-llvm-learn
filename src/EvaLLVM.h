@@ -10,10 +10,14 @@
 #include <iostream>
 #include <errno.h>
 
+#include "./parser/EvaParser.h"
+
+using syntax::EvaParser;
+
 class EvaLLVM
 {
 public:
-    EvaLLVM()
+    EvaLLVM() : parser(std::make_unique<EvaParser>())
     {
         moduleInit();
         setupExternFunctions();
@@ -21,7 +25,8 @@ public:
 
     void exec(const std::string &program)
     {
-        compile();
+        auto ast = parser->parse(program);
+        compile(ast);
         module->print(llvm::outs(), nullptr);
         std::cout << "\n";
         saveModuleToFile("./out.ll");
@@ -30,6 +35,8 @@ public:
     ~EvaLLVM() = default;
 
 private:
+    std::unique_ptr<EvaParser> parser;
+
     llvm::Function *fn;
 
     std::unique_ptr<llvm::LLVMContext> ctx;
@@ -38,20 +45,47 @@ private:
 
     std::unique_ptr<llvm::IRBuilder<>> builder;
 
-    void compile()
+    void compile(const Exp &ast)
     {
         fn = createFunction("main", llvm::FunctionType::get(builder->getInt32Ty(), false));
-        gen();
+        gen(ast);
         builder->CreateRet(builder->getInt32(0));
     }
 
-    llvm::Value *gen()
+    llvm::Value *gen(const Exp &exp)
     {
-        auto str = builder->CreateGlobalStringPtr("hello\n");
-        auto printfFn = module->getFunction("printf");
+        switch (exp.type)
+        {
+        case ExpType::NUMBER:
+            return builder->getInt32(exp.number);
+        case ExpType::STRING: {
+            auto re = std::regex("\\\\n");
+            auto str = std::regex_replace(exp.string, re, "\n");
+            return builder->CreateGlobalStringPtr(str);
+        }
+        case ExpType::SYMBOL:
+            return builder->getInt32(0);
+        case ExpType::LIST:
+            auto tag = exp.list[0];
+            if (tag.type == ExpType::SYMBOL)
+            {
+                auto op = tag.string;
+                if (op == "printf")
+                {
+                    auto printfFn = module->getFunction("printf");
+                    std::vector<llvm::Value*> args{};
 
-        std::vector<llvm::Value*> args{str};
-        return builder->CreateCall(printfFn, args);
+                    for (auto i = 1; i < exp.list.size(); i++)
+                    {
+                        args.push_back(gen(exp.list[i]));
+                    }
+                    
+                    return builder->CreateCall(printfFn, args);
+                }
+            }
+        }
+
+        return builder->getInt32(0);
     }
 
     void setupExternFunctions()

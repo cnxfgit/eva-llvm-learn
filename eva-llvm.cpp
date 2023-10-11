@@ -4,7 +4,7 @@
 int main(int argc, const char *argv[])
 {
     std::string program = R"(
-        42
+        (printf "Value: %d\n" 42)
     )";
 
     EvaLLVM vm;

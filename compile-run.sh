@@ -1,4 +1,4 @@
-clang++-14 -o eva-llvm `llvm-config-14 --cxxflags --ldflags --system-libs --libs core` eva-llvm.cpp
+clang++-14 -o eva-llvm `llvm-config-14 --cxxflags --ldflags --system-libs --libs core` -fexceptions eva-llvm.cpp
 
 ./eva-llvm
 

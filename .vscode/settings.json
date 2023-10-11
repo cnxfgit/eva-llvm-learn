@@ -47,6 +47,14 @@
         "typeinfo": "cpp",
         "bitset": "cpp",
         "set": "cpp",
-        "list": "cpp"
+        "list": "cpp",
+        "chrono": "cpp",
+        "condition_variable": "cpp",
+        "ctime": "cpp",
+        "map": "cpp",
+        "ratio": "cpp",
+        "regex": "cpp",
+        "iostream": "cpp",
+        "shared_mutex": "cpp"
     }
 }

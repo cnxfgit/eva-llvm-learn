@@ -4,7 +4,11 @@
 int main(int argc, const char *argv[])
 {
     std::string program = R"(
-        (printf "version: %d\n" (var version 42))
+        //(var VERSION 42)
+        //(begin 
+        //    (var VERSION "hello")
+        //    (printf "VERSION: %s\n\n" VERSION))
+        (printf "VERSION: %d\n\n" VERSION)
     )";
 
     EvaLLVM vm;

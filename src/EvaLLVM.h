@@ -48,6 +48,8 @@ private:
 
     std::unique_ptr<llvm::Module> module;
 
+    std::unique_ptr<llvm::IRBuilder<>> varsBuilder;
+
     std::unique_ptr<llvm::IRBuilder<>> builder;
 
     void compile(const Exp &ast)
@@ -80,12 +82,17 @@ private:
                 auto varName = exp.string;
                 auto value = env->lookup(varName);
 
-                if (auto globalVar = llvm::dyn_cast<llvm::GlobalVariable>(value))
+                if (auto localVar = llvm::dyn_cast<llvm::AllocaInst>(value))
+                {
+                    return builder->CreateLoad(localVar->getAllocatedType(),
+                                               localVar, varName.c_str());
+                }
+
+                else if (auto globalVar = llvm::dyn_cast<llvm::GlobalVariable>(value))
                 {
                     return builder->CreateLoad(globalVar->getInitializer()->getType(),
-                     globalVar, varName.c_str());
+                                               globalVar, varName.c_str());
                 }
-                
             }
 
             return builder->getInt32(0);
@@ -98,16 +105,33 @@ private:
 
                 if (op == "var")
                 {
-                    auto varName = exp.list[1].string;
+                    auto varNameDecl = exp.list[1];
+                    auto varName = extractVarName(varNameDecl);
                     auto init = gen(exp.list[2], env);
-                    return createGlobalVar(varName, (llvm::Constant *)init)->getInitializer();
+
+                    auto varTy = extractVarType(varNameDecl);
+                    auto varBinding = allocVar(varName, varTy, env);
+                    return builder->CreateStore(init, varBinding);
+                }
+                else if (op == "set")
+                {
+                    auto value = gen(exp.list[2], env);
+
+                    auto varName = exp.list[1].string;
+
+                    auto varBinding = env->lookup(varName);
+
+                    return builder->CreateStore(value, varBinding);
                 }
                 else if (op == "begin")
                 {
+                    auto blockEnv = std::make_shared<Environment>(
+                        std::map<std::string, llvm::Value *>{}, env);
+
                     llvm::Value *blockRes;
                     for (auto i = 1; i < exp.list.size(); i++)
                     {
-                        blockRes = gen(exp.list[i], env);
+                        blockRes = gen(exp.list[i], blockEnv);
                     }
                     return blockRes;
                 }
@@ -127,6 +151,41 @@ private:
         }
 
         return builder->getInt32(0);
+    }
+
+    std::string extractVarName(const Exp &exp)
+    {
+        return exp.type == ExpType::LIST ? exp.list[0].string : exp.string;
+    }
+
+    llvm::Type *extractVarType(const Exp &exp)
+    {
+        return exp.type == ExpType::LIST ? getTypeFromString(exp.list[1].string)
+                                         : builder->getInt32Ty();
+    }
+
+    llvm::Type *getTypeFromString(const std::string &type_)
+    {
+        if (type_ == "number")
+        {
+            return builder->getInt32Ty();
+        }
+
+        if (type_ == "string")
+        {
+            return builder->getInt8Ty()->getPointerTo();
+        }
+
+        return builder->getInt32Ty();
+    }
+
+    llvm::Value *allocVar(const std::string &name, llvm::Type *type_, Env env)
+    {
+        varsBuilder->SetInsertPoint(&fn->getEntryBlock());
+        auto varAlloc = varsBuilder->CreateAlloca(type_, 0, name.c_str());
+        env->define(name, varAlloc);
+
+        return varAlloc;
     }
 
     llvm::GlobalVariable *createGlobalVar(const std::string &name, llvm::Constant *init)
@@ -194,6 +253,7 @@ private:
         ctx = std::make_unique<llvm::LLVMContext>();
         module = std::make_unique<llvm::Module>("EvaLLVM", *ctx);
         builder = std::make_unique<llvm::IRBuilder<>>(*ctx);
+        varsBuilder = std::make_unique<llvm::IRBuilder<>>(*ctx);
     }
 
     void setupGlobalEnvironment()

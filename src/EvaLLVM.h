@@ -16,6 +16,14 @@
 using syntax::EvaParser;
 using Env = std::shared_ptr<Environment>;
 
+#define GEN_BINARY_OP(Op, varName)             \
+    do                                         \
+    {                                          \
+        auto op1 = gen(exp.list[1], env);      \
+        auto op2 = gen(exp.list[2], env);      \
+        return builder->Op(op1, op2, varName); \
+    } while (false);
+
 class EvaLLVM
 {
 public:
@@ -102,6 +110,47 @@ private:
             if (tag.type == ExpType::SYMBOL)
             {
                 auto op = tag.string;
+
+                if (op == "+")
+                {
+                    GEN_BINARY_OP(CreateAdd, "tmpadd");
+                }
+                else if (op == "-")
+                {
+                    GEN_BINARY_OP(CreateSub, "tmpsub");
+                }
+                else if (op == "*")
+                {
+                    GEN_BINARY_OP(CreateMul, "tmpmul");
+                }
+                else if (op == "/")
+                {
+                    GEN_BINARY_OP(CreateSDiv, "tmpdiv");
+                }
+                else if (op == ">")
+                {
+                    GEN_BINARY_OP(CreateICmpUGT, "tmpcmp");
+                }
+                else if (op == "<")
+                {
+                    GEN_BINARY_OP(CreateICmpULT, "tmpcmp");
+                }
+                else if (op == "==")
+                {
+                    GEN_BINARY_OP(CreateICmpEQ, "tmpcmp");
+                }
+                else if (op == "!=")
+                {
+                    GEN_BINARY_OP(CreateICmpNE, "tmpcmp");
+                }
+                else if (op == ">=")
+                {
+                    GEN_BINARY_OP(CreateICmpUGE, "tmpcmp");
+                }
+                else if (op == "<=")
+                {
+                    GEN_BINARY_OP(CreateICmpULE, "tmpcmp");
+                }
 
                 if (op == "var")
                 {

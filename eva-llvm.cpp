@@ -4,15 +4,13 @@
 int main(int argc, const char *argv[])
 {
     std::string program = R"(
-        (var x 42)
-        (begin 
-            (var (x string) "Hello")
-            (printf "x: %s\n\n" x))
+        (var x (* 32 10))
+        //(if (== x 42)
+        //    (set x 100)
+        //    (set x 200)
+        //)
 
-        (printf "x: %d\n\n" x)
-
-        (set x 100)
-        (printf "x: %d\n\n" x)
+        (printf "x = %d\n" (>= x 32))
     )";
 
     EvaLLVM vm;

@@ -4,11 +4,22 @@
 int main(int argc, const char *argv[])
 {
     std::string program = R"(
-        (def square (x) (* x x))
-        (def sum ((a number) (b number)) -> number (+ a b))
-        
-        (printf "%d\n" (square 2))
-        (printf "%d\n" (sum 2 4))
+        (class Point null 
+            (begin 
+                (var x 0)
+                (var y 0)
+                (def constructor (self x y)
+                    (begin 
+                        //(set (prop self x) x)
+                        //(set (prop self y) y) 
+                        0)
+                )
+
+                (def calc (self) 0
+                   // (+ (prop self x) (prop self y))
+                )
+            )
+        )
     )";
 
     EvaLLVM vm;

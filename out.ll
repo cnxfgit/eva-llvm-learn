@@ -1,40 +1,32 @@
 ; ModuleID = 'EvaLLVM'
 source_filename = "EvaLLVM"
 
+%Point = type { i32, i32 }
+
 @VERSION = global i32 42, align 4
 @version = global i32 42, align 4
-@0 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
-@1 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
 
 declare i32 @printf(i8*, ...)
 
 define i32 @main() {
 entry:
-  %0 = call i32 @square(i32 2)
-  %1 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @0, i32 0, i32 0), i32 %0)
-  %2 = call i32 @sum(i32 2, i32 4)
-  %3 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @1, i32 0, i32 0), i32 %2)
   ret i32 0
 }
 
-define i32 @square(i32 %x) {
+define i32 @Point_constructor(%Point* %self, i32 %x, i32 %y) {
 entry:
-  %x1 = alloca i32, align 4
-  store i32 %x, i32* %x1, align 4
-  %x2 = load i32, i32* %x1, align 4
-  %x3 = load i32, i32* %x1, align 4
-  %tmpmul = mul i32 %x2, %x3
-  ret i32 %tmpmul
+  %self1 = alloca %Point*, align 8
+  store %Point* %self, %Point** %self1, align 8
+  %x2 = alloca i32, align 4
+  store i32 %x, i32* %x2, align 4
+  %y3 = alloca i32, align 4
+  store i32 %y, i32* %y3, align 4
+  ret i32 0
 }
 
-define i32 @sum(i32 %a, i32 %b) {
+define i32 @Point_calc(%Point* %self) {
 entry:
-  %a1 = alloca i32, align 4
-  store i32 %a, i32* %a1, align 4
-  %b2 = alloca i32, align 4
-  store i32 %b, i32* %b2, align 4
-  %a3 = load i32, i32* %a1, align 4
-  %b4 = load i32, i32* %b2, align 4
-  %tmpadd = add i32 %a3, %b4
-  ret i32 %tmpadd
+  %self1 = alloca %Point*, align 8
+  store %Point* %self, %Point** %self1, align 8
+  ret i32 0
 }

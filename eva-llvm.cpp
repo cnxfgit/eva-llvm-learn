@@ -4,13 +4,11 @@
 int main(int argc, const char *argv[])
 {
     std::string program = R"(
-        (var x 10)
-        (while (> x 0)
-            (begin 
-                (set x (- x 1))
-                (printf "%d\n" x)
-            )
-        )
+        (def square (x) (* x x))
+        (def sum ((a number) (b number)) -> number (+ a b))
+        
+        (printf "%d\n" (square 2))
+        (printf "%d\n" (sum 2 4))
     )";
 
     EvaLLVM vm;

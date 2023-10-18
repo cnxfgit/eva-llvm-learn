@@ -258,12 +258,28 @@ private:
                 {
                     auto value = gen(exp.list[2], env);
 
-                    auto varName = exp.list[1].string;
+                    if (isProp(exp.list[1]))
+                    {
+                        auto instance = gen(exp.list[1].list[1], env);
+                        auto fieldName = exp.list[1].list[2].string;
+                        auto ptrName = std::string("p") + fieldName;
 
-                    auto varBinding = env->lookup(varName);
+                        auto cls = (llvm::StructType *)(instance->getType()->getContainedType(0));
+                        auto fieldIdx = getFieldIndex(cls, fieldName);
+                        auto address = builder->CreateStructGEP(cls, instance, fieldIdx, ptrName);
+                        builder->CreateStore(value, address);
+                        return value;
+                    }
+                    else
+                    {
 
-                    builder->CreateStore(value, varBinding);
-                    return value;
+                        auto varName = exp.list[1].string;
+
+                        auto varBinding = env->lookup(varName);
+
+                        builder->CreateStore(value, varBinding);
+                        return value;
+                    }
                 }
                 else if (op == "begin")
                 {
@@ -322,6 +338,19 @@ private:
                     return createInstance(exp, env, "");
                 }
 
+                else if (op == "prop")
+                {
+                    auto instance = gen(exp.list[1], env);
+                    auto fieldName = exp.list[2].string;
+                    auto ptrName = std::string("p") + fieldName;
+
+                    auto cls = (llvm::StructType *)(instance->getType()->getContainedType(0));
+                    auto fieldIdx = getFieldIndex(cls, fieldName);
+                    auto address = builder->CreateStructGEP(cls, instance, fieldIdx, ptrName);
+
+                    return builder->CreateLoad(cls->getElementType(fieldIdx), address, fieldName);
+                }
+
                 else
                 {
                     auto callable = gen(exp.list[0], env);
@@ -338,6 +367,13 @@ private:
         }
 
         return builder->getInt32(0);
+    }
+
+    size_t getFieldIndex(llvm::StructType *cls, const std::string &fieldName)
+    {
+        auto fields = &classMap_[cls->getName().data()].fieldsMap;
+        auto it = fields->find(fieldName);
+        return std::distance(fields->begin(), it);
     }
 
     llvm::Value *createInstance(const Exp &exp, Env env, const std::string &name)
@@ -430,6 +466,11 @@ private:
     bool isNew(const Exp &exp)
     {
         return isTaggedList(exp, "new");
+    }
+
+    bool isProp(const Exp &exp)
+    {
+        return isTaggedList(exp, "prop");
     }
 
     llvm::Value *mallocInstance(llvm::StructType *cls, const std::string &name)
@@ -639,7 +680,8 @@ private:
         GlobalEnv = std::make_shared<Environment>(globalRec, nullptr);
     }
 
-    void setupTargetTriple(){
+    void setupTargetTriple()
+    {
         module->setTargetTriple("x86_64-pc-linux-gnu");
     }
 };

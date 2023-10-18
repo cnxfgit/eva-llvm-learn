@@ -11,17 +11,18 @@ int main(int argc, const char *argv[])
                 (def constructor (self x y)
                     (begin 
                         (set (prop self x) x)
-                        (set (prop self y) y) 
+                        (set (prop self y) y)  
                     )
                 )
 
                 (def calc (self)
-                    (+ (prop self x) (prop self y))
+                    //(+ (prop self x) (prop self y))
+                    0
                 )
             )
         )
         (var p (new Point 10 20))
-        (printf "%d\n" (prop p x))
+        (printf "p.y = %d\n" (prop p y))
     )";
 
     EvaLLVM vm;

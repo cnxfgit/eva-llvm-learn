@@ -40,6 +40,7 @@ public:
         moduleInit();
         setupExternFunctions();
         setupGlobalEnvironment();
+        setupTargetTriple();
     }
 
     void exec(const std::string &program)
@@ -240,6 +241,13 @@ private:
 
                     auto varNameDecl = exp.list[1];
                     auto varName = extractVarName(varNameDecl);
+
+                    if (isNew(exp.list[2]))
+                    {
+                        auto instance = createInstance(exp.list[2], env, varName);
+                        return env->define(varName, instance);
+                    }
+
                     auto init = gen(exp.list[2], env);
 
                     auto varTy = extractVarType(varNameDecl);
@@ -309,6 +317,11 @@ private:
                     return builder->getInt32(0);
                 }
 
+                else if (op == "new")
+                {
+                    return createInstance(exp, env, "");
+                }
+
                 else
                 {
                     auto callable = gen(exp.list[0], env);
@@ -325,6 +338,30 @@ private:
         }
 
         return builder->getInt32(0);
+    }
+
+    llvm::Value *createInstance(const Exp &exp, Env env, const std::string &name)
+    {
+        auto className = exp.list[1].string;
+        auto cls = getClassByName(className);
+
+        if (cls == nullptr)
+        {
+            DIE << "[EvaLLVM]: unknown class " << cls;
+        }
+
+        // auto instance = name.empty() ? builder->CreateAlloca(cls)
+        //                             : builder->CreateAlloca(cls, 0, name);
+        auto instance = mallocInstance(cls, name);
+
+        auto ctor = module->getFunction(className + "_constructor");
+        std::vector<llvm::Value *> args{instance};
+        for (auto i = 2; i < exp.list.size(); i++)
+        {
+            args.push_back(gen(exp.list[i], env));
+        }
+        builder->CreateCall(ctor, args);
+        return instance;
     }
 
     void buildClassInfo(llvm::StructType *cls, const Exp &clsExp, Env env)
@@ -388,6 +425,24 @@ private:
     bool isDef(const Exp &exp)
     {
         return isTaggedList(exp, "def");
+    }
+
+    bool isNew(const Exp &exp)
+    {
+        return isTaggedList(exp, "new");
+    }
+
+    llvm::Value *mallocInstance(llvm::StructType *cls, const std::string &name)
+    {
+        auto typeSize = builder->getInt64(getTypeSize(cls));
+        auto mallocPtr = builder->CreateCall(module->getFunction("GC_malloc"), typeSize, name);
+
+        return builder->CreatePointerCast(mallocPtr, cls->getPointerTo());
+    }
+
+    size_t getTypeSize(llvm::Type *type_)
+    {
+        return module->getDataLayout().getTypeAllocSize(type_);
     }
 
     void inheritClass(llvm::StructType *cls, llvm::StructType *parent)
@@ -513,6 +568,9 @@ private:
         auto bytePtrTy = builder->getInt8Ty()->getPointerTo();
         module->getOrInsertFunction("printf",
                                     llvm::FunctionType::get(builder->getInt32Ty(), bytePtrTy, true));
+
+        module->getOrInsertFunction("GC_malloc",
+                                    llvm::FunctionType::get(bytePtrTy, builder->getInt64Ty(), false));
     }
 
     llvm::Function *createFunction(const std::string &fnName, llvm::FunctionType *fnType, Env env)
@@ -579,6 +637,10 @@ private:
         }
 
         GlobalEnv = std::make_shared<Environment>(globalRec, nullptr);
+    }
+
+    void setupTargetTriple(){
+        module->setTargetTriple("x86_64-pc-linux-gnu");
     }
 };
 

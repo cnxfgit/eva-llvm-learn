@@ -24,6 +24,10 @@ struct ClassInfo
     std::map<std::string, llvm::Function *> methodsMap;
 };
 
+static size_t VTABLE_INDEX = 0;
+
+static size_t RESERVED_FIELDS_COUNT = 1;
+
 #define GEN_BINARY_OP(Op, varName)             \
     do                                         \
     {                                          \
@@ -373,7 +377,7 @@ private:
     {
         auto fields = &classMap_[cls->getName().data()].fieldsMap;
         auto it = fields->find(fieldName);
-        return std::distance(fields->begin(), it);
+        return std::distance(fields->begin(), it) + RESERVED_FIELDS_COUNT;
     }
 
     llvm::Value *createInstance(const Exp &exp, Env env, const std::string &name)
@@ -438,13 +442,44 @@ private:
         std::string className{cls->getName().data()};
 
         auto classInfo = &classMap_[className];
-        auto clsFields = std::vector<llvm::Type *>{};
+
+        auto vTableName = className + "_vTable";
+        auto vTableTy = llvm::StructType::create(*ctx, vTableName);
+
+        auto clsFields = std::vector<llvm::Type *>{
+            vTableTy->getPointerTo(),
+        };
         for (const auto &fieldInfo : classInfo->fieldsMap)
         {
             clsFields.push_back(fieldInfo.second);
         }
 
         cls->setBody(clsFields, false);
+
+        buildVTable(cls);
+    }
+
+    void buildVTable(llvm::StructType *cls)
+    {
+        std::string className{cls->getName().data()};
+        auto vTableName = className + "_vTable";
+
+        auto vTableTy = llvm::StructType::getTypeByName(*ctx, vTableName);
+
+        std::vector<llvm::Constant *> vTableMethods;
+        std::vector<llvm::Type *> vTableMethodTys;
+
+        for (auto &methodInfo : classMap_[className].methodsMap)
+        {
+            auto method = methodInfo.second;
+            vTableMethods.push_back(method);
+            vTableMethodTys.push_back(method->getType());
+        }
+
+        vTableTy->setBody(vTableMethodTys);
+
+        auto vTableValue = llvm::ConstantStruct::get(vTableTy, vTableMethods);
+        createGlobalVar(vTableName, vTableValue);
     }
 
     bool isTaggedList(const Exp &exp, const std::string &tag)
@@ -488,6 +523,10 @@ private:
 
     void inheritClass(llvm::StructType *cls, llvm::StructType *parent)
     {
+        auto parentClassInfo = &classMap_[parent->getName().data()];
+
+        classMap_[cls->getName().data()] = {
+            cls, parent, parentClassInfo->fieldsMap, parentClassInfo->methodsMap};
     }
 
     llvm::StructType *getClassByName(const std::string &name)

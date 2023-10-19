@@ -16,8 +16,7 @@ int main(int argc, const char *argv[])
                 )
 
                 (def calc (self)
-                    //(+ (prop self x) (prop self y))
-                    0
+                    (+ (prop self x) (prop self y))
                 )
             )
         )
@@ -28,14 +27,13 @@ int main(int argc, const char *argv[])
 
                 (def constructor (self x y z)
                     (begin 
-                        //((method (super Point3D) constructor) self x y)
+                        ((method (super Point3D) constructor) self x y)
                         (set (prop self z) z)
                     )
                 )
 
                 (def calc (self)
-                    //(+ ((method (super Point3D) calc) self) (prop self z))
-                    0
+                    (+ ((method (super Point3D) calc) self) (prop self z))
                 )
             )
         )
@@ -47,16 +45,16 @@ int main(int argc, const char *argv[])
         (printf "p2.y = %d\n" (prop p2 y))
         (printf "p2.z = %d\n" (prop p2 z))
 
-        //(printf "Point3D.calc result = %d\n" ((method p2 calc) p2))
+        (printf "Point3D.calc result = %d\n" ((method p2 calc) p2))
 
-        //(def check ((obj Point))
-        //    (begin 
-        //        ((method obj calc) obj)
-        //    )
-        //)
+        (def check ((obj Point))
+            (begin 
+                ((method obj calc) obj)
+            )
+        )
 
-        //(check p1)
-        //(check p2)
+        (check p1)
+        (check p2)
     )";
 
     EvaLLVM vm;

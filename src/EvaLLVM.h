@@ -355,18 +355,85 @@ private:
                     return builder->CreateLoad(cls->getElementType(fieldIdx), address, fieldName);
                 }
 
+                else if (op == "method")
+                {
+                    auto methodName = exp.list[2].string;
+
+                    llvm::StructType *cls;
+                    llvm::Value *vTable;
+                    llvm::StructType *vTableTy;
+
+                    if (isSuper(exp.list[1]))
+                    {
+                        auto className = exp.list[1].list[1].string;
+                        cls = classMap_[className].parent;
+                        auto parentName = std::string{cls->getName().data()};
+                        vTable = module->getNamedGlobal(parentName + "_vTable");
+                        vTableTy = llvm::StructType::getTypeByName(*ctx, parentName + "_vTable");
+                    }
+                    else
+                    {
+                        auto instance = gen(exp.list[1], env);
+                        cls = (llvm::StructType *)(instance->getType()->getContainedType(0));
+
+                        auto vTableAddr = builder->CreateStructGEP(cls, instance, VTABLE_INDEX);
+                        vTable = builder->CreateLoad(cls->getElementType(VTABLE_INDEX), vTableAddr, "vt");
+                        vTableTy = (llvm::StructType *)(vTable->getType()->getContainedType(0));
+                    }
+
+                    auto methodIdx = getMethodIndex(cls, methodName);
+
+                    auto methodTy = (llvm::FunctionType *)vTableTy->getElementType(methodIdx);
+
+                    auto methodAddr = builder->CreateStructGEP(vTableTy, vTable, methodIdx);
+                    return builder->CreateLoad(methodTy, methodAddr);
+                }
+
                 else
                 {
                     auto callable = gen(exp.list[0], env);
+                    auto fn = (llvm::Function *)callable;
                     std::vector<llvm::Value *> args{};
-                    for (auto i = 1; i < exp.list.size(); i++)
+                    auto argIdx = 0;
+                    for (auto i = 1; i < exp.list.size(); i++, argIdx++)
                     {
-                        args.push_back(gen(exp.list[i], env));
+                        auto argValue = gen(exp.list[i], env);
+                        auto paramTy = fn->getArg(argIdx)->getType();
+                        auto bitCastArgVal = builder->CreateBitCast(argValue, paramTy);
+                        args.push_back(bitCastArgVal);
                     }
 
-                    auto fn = (llvm::Function *)callable;
                     return builder->CreateCall(fn, args);
                 }
+            }
+
+            else
+            {
+                auto loadMethod = (llvm::LoadInst *)gen(exp.list[0], env);
+
+                auto fnTy = (llvm::FunctionType *)loadMethod->getPointerOperand()
+                                ->getType()
+                                ->getContainedType(0)
+                                ->getContainedType(0);
+
+                std::vector<llvm::Value *> args{};
+
+                for (auto i = 1; i < exp.list.size(); i++)
+                {
+                    auto argValue = gen(exp.list[i], env);
+
+                    auto paramTy = fnTy->getParamType(i - 1);
+                    if (argValue->getType() != paramTy)
+                    {
+                        auto bitCastArgVal = builder->CreateBitCast(argValue, paramTy);
+                        args.push_back(bitCastArgVal);
+                    }
+                    else
+                    {
+                        args.push_back(argValue);
+                    }
+                }
+                return builder->CreateCall(fnTy, loadMethod, args);
             }
         }
 
@@ -378,6 +445,13 @@ private:
         auto fields = &classMap_[cls->getName().data()].fieldsMap;
         auto it = fields->find(fieldName);
         return std::distance(fields->begin(), it) + RESERVED_FIELDS_COUNT;
+    }
+
+    size_t getMethodIndex(llvm::StructType *cls, const std::string &methodName)
+    {
+        auto methods = &classMap_[cls->getName().data()].methodsMap;
+        auto it = methods->find(methodName);
+        return std::distance(methods->begin(), it);
     }
 
     llvm::Value *createInstance(const Exp &exp, Env env, const std::string &name)
@@ -508,12 +582,25 @@ private:
         return isTaggedList(exp, "prop");
     }
 
+    bool isSuper(const Exp &exp)
+    {
+        return isTaggedList(exp, "super");
+    }
+
     llvm::Value *mallocInstance(llvm::StructType *cls, const std::string &name)
     {
         auto typeSize = builder->getInt64(getTypeSize(cls));
         auto mallocPtr = builder->CreateCall(module->getFunction("GC_malloc"), typeSize, name);
 
-        return builder->CreatePointerCast(mallocPtr, cls->getPointerTo());
+        auto instance = builder->CreatePointerCast(mallocPtr, cls->getPointerTo());
+
+        std::string className{cls->getName().data()};
+        auto vTableName = className + "_vTable";
+        auto vTableAddr = builder->CreateStructGEP(cls, instance, VTABLE_INDEX);
+        auto vTable = module->getNamedGlobal(vTableName);
+        builder->CreateStore(vTable, vTableAddr);
+
+        return instance;
     }
 
     size_t getTypeSize(llvm::Type *type_)

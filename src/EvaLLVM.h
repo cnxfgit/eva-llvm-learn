@@ -392,9 +392,24 @@ private:
                 else
                 {
                     auto callable = gen(exp.list[0], env);
-                    auto fn = (llvm::Function *)callable;
+
+                    auto callableTy = callable->getType()->getContainedType(0);
+
                     std::vector<llvm::Value *> args{};
                     auto argIdx = 0;
+
+                    if (callableTy->isStructTy())
+                    {
+                        auto cls = (llvm::StructType*) callableTy;
+                        std::string className{cls->getName().data()};
+                        args.push_back(callable);
+                        argIdx++;
+
+                        callable = module->getFunction(className + "___call__");
+                    }
+
+                    auto fn = (llvm::Function *)callable;
+
                     for (auto i = 1; i < exp.list.size(); i++, argIdx++)
                     {
                         auto argValue = gen(exp.list[i], env);
